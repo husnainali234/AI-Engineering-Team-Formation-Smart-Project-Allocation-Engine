@@ -1,0 +1,68 @@
+services:
+  db:
+    image: postgres:16
+    container_name: ai020_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: .
+    container_name: ai020_backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/code/app           # live-reload during development
+      - ./scripts:/code/scripts   # seed/data scripts
+      - ./alembic:/code/alembic   # migration scripts
+      - ./data:/code/data         # seeded CSV output lands on the host too
+      - hf_cache:/root/.cache/huggingface   # Day 4: cache the sentence-transformers
+                                             # model weights so they're downloaded once,
+                                             # not on every container rebuild/restart
+      - ./mlruns:/code/mlruns    # Day 17: MLflow local file store (default
+                                 # MLFLOW_TRACKING_URI=file:./mlruns) — lands
+                                 # on the host so run history survives
+                                 # `docker compose down`/rebuilds, same
+                                 # reasoning as pgdata/hf_cache above. No
+                                 # separate mlflow service: this is the
+                                 # client-side file store, not a tracking
+                                 # server.
+
+  # Day 11: Streamlit dashboard scaffold (role-based nav: Mentor/Admin/
+  # Student). Full page content lands Days 12-14 — this just proves the
+  # "one command starts backend, DB, and dashboard" requirement end-to-end.
+  dashboard:
+    build: ./dashboard
+    container_name: ai020_dashboard
+    restart: unless-stopped
+    environment:
+      BACKEND_URL: http://backend:8000
+    depends_on:
+      - backend
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./dashboard:/code   # live-reload during development
+
+volumes:
+  pgdata:
+  hf_cache:
