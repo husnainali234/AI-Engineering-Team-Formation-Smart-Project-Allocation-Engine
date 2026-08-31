@@ -1,0 +1,16 @@
+# Post-Day-20 design pass. Sets Streamlit's own widget theme (spinners,
+# focus rings, native chart defaults) so it isn't fighting lib/theme.py's
+# CSS injection on first paint. See lib/theme.py's module docstring for
+# the full design system this is one half of, and for why this file only
+# takes effect when Streamlit is launched with `dashboard/` as the
+# working directory (the docker-compose path — see that file's WORKDIR).
+[theme]
+base = "dark"
+primaryColor = "#17C3B2"
+backgroundColor = "#0A1830"
+secondaryBackgroundColor = "#132A4C"
+textColor = "#E9EFF7"
+font = "sans serif"
+
+[server]
+headless = true

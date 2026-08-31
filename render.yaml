@@ -1,0 +1,67 @@
+# Render Blueprint — one-click hosted demo deployment.
+#
+# Usage: push this repo to GitHub, then in the Render dashboard choose
+# "New +" -> "Blueprint" and point it at the repo. Render reads this file
+# and provisions all three services + the database automatically. See
+# DEPLOYMENT_GUIDE.md's "Hosted demo (Day 18)" section for the full
+# walkthrough, including seeding the curated demo dataset after first
+# deploy.
+#
+# Render's free tier: web services spin down after 15 min idle and take
+# ~30-60s to wake on the next request (expected — mention this if a demo
+# viewer hits a slow first load) and free Postgres instances expire after
+# 90 days. Fine for a course demo; not meant as a durable production setup.
+
+databases:
+  - name: ai020-db
+    plan: free
+    databaseName: ezitech_ai020
+    user: ezitech
+
+services:
+  - type: web
+    name: ai020-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ai020-db
+          property: connectionString
+      - key: EMBEDDING_MODEL_NAME
+        value: all-MiniLM-L6-v2
+      - key: MLFLOW_TRACKING_URI
+        value: file:./mlruns
+      - key: MLFLOW_EXPERIMENT_NAME
+        value: success-probability-model
+      - key: MLFLOW_TRACKING_ENABLED
+        value: "true"
+      - key: ALLOWED_ORIGINS
+        # Render doesn't know the dashboard's URL until after first
+        # deploy (it's generated from the service name below); set this
+        # to the actual https://ai020-dashboard-<hash>.onrender.com URL
+        # once known, or leave as "*" for a quick demo.
+        value: "*"
+    # Render sets $PORT; override the Dockerfile's fixed --port 8000 and
+    # drop --reload (dev-only — see docker-compose.yml's comment on the
+    # same flag) for a production-style start command.
+    dockerCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+
+  - type: web
+    name: ai020-dashboard
+    runtime: docker
+    dockerfilePath: ./dashboard/Dockerfile
+    dockerContext: ./dashboard
+    plan: free
+    envVars:
+      # Render's Blueprint templating doesn't reliably fill in a scheme-
+      # prefixed URL here (its `fromService` property options return a
+      # bare host, not `https://host`). Deploy once, then set this to the
+      # ai020-backend service's actual https URL from the Render
+      # dashboard (Environment tab) and redeploy the dashboard service —
+      # a one-time manual step, not a recurring one.
+      - key: BACKEND_URL
+        value: https://ai020-backend.onrender.com
+    dockerCommand: >-
+      streamlit run Home.py --server.address=0.0.0.0 --server.port=$PORT

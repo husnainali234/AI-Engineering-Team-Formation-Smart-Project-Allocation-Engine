@@ -1,0 +1,45 @@
+# Fly.io app config for the backend API. Generated manually (not via
+# `fly launch`, since that requires network access this environment
+# doesn't have) — run `fly launch --no-deploy` locally to let Fly adopt/
+# adjust this if needed, then `fly deploy`.
+#
+# The dashboard (Streamlit) isn't included here — Fly's free tier is
+# tightest for a single always-on-ish app; run the backend on Fly and
+# the dashboard on Render/Railway (or locally pointed at the Fly URL) if
+# you want both hosted, or just demo the API via Swagger (/docs) on its
+# own, which is enough to walk through every engine.
+
+app = "ai020-backend"
+primary_region = "iad"
+
+[build]
+
+[env]
+  EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
+  MLFLOW_TRACKING_URI = "file:./mlruns"
+  MLFLOW_EXPERIMENT_NAME = "success-probability-model"
+  MLFLOW_TRACKING_ENABLED = "true"
+  ALLOWED_ORIGINS = "*"
+  # DATABASE_URL is a secret, not a plain env var — set it with:
+  #   fly secrets set DATABASE_URL=postgresql://...
+  # after provisioning Postgres with `fly postgres create` (or point it
+  # at any external managed Postgres, e.g. Supabase's free tier).
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+[processes]
+  app = "uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1024mb"
+  # torch (via sentence-transformers) and shap both have a meaningful
+  # memory footprint once the embedding model loads on first use;
+  # 512mb ran the risk of an OOM kill on that specific request. Fly's
+  # free allowance covers this size for a low-traffic demo.
